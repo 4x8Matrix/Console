@@ -1,0 +1,19 @@
+{
+	"name": "Console",
+	"tree": {
+		"$className": "DataModel",
+
+		"ReplicatedStorage": {
+			"$ignoreUnknownInstances": true,
+			"$className": "ReplicatedStorage",
+			
+			"Packages": {
+				"$path": "Packages",
+				
+				"Console": {
+					"$path": "Source"
+				}
+			}
+		}
+	}
+}
