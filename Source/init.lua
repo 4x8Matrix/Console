@@ -8,9 +8,12 @@ local PRETTY_TABLE_TAB = string.rep("\t", (RunService:IsStudio() and 1) or 5)
 
 local Logger = { }
 
+Logger.LogLevel = 1
+Logger.Schema = DEFAULT_LOGGING_SCHEMA
+
 Logger.Functions = { }
 Logger.Interface = { }
-Logger.Instances = { }
+Logger.Reporters = { }
 Logger.Class = { }
 
 Logger.Interface.onMessageOut = Signal.new()
@@ -100,15 +103,15 @@ function Logger.Class:assert(statement, ...)
 end
 
 function Logger.Class:critical(...)
-	local outputMessage = Logger.Functions:formatMessageSchema(self.schema, self.id, "critical", Logger.Functions:formatVaradicArguments(...))
+	local outputMessage = Logger.Functions:formatMessageSchema(self.schema or Logger.Schema, self.id, "critical", Logger.Functions:formatVaradicArguments(...))
 
 	table.insert(self.logs, 1, { "critical", outputMessage, self.id })
 	if #self.logs > MAXIMUM_CACHED_LOGS then
 		table.remove(self.logs, MAXIMUM_CACHED_LOGS)
 	end
 
-	if self.level > Logger.Interface.LogLevel.Critical then
-		return coroutine.close(coroutine.running())
+	if self.level > Logger.Interface.LogLevel.Critical or Logger.LogLevel > Logger.Interface.LogLevel.Critical then
+		return
 	end
 
 	Logger.Interface.onMessageOut:Fire(self.id or "<unknown>", outputMessage)
@@ -117,15 +120,15 @@ function Logger.Class:critical(...)
 end
 
 function Logger.Class:error(...)
-	local outputMessage = Logger.Functions:formatMessageSchema(self.schema, self.id, "error", Logger.Functions:formatVaradicArguments(...))
+	local outputMessage = Logger.Functions:formatMessageSchema(self.schema or Logger.Schema, self.id, "error", Logger.Functions:formatVaradicArguments(...))
 
 	table.insert(self.logs, 1, { "error", outputMessage, self.id })
 	if #self.logs > MAXIMUM_CACHED_LOGS then
 		table.remove(self.logs, MAXIMUM_CACHED_LOGS)
 	end
 
-	if self.level > Logger.Interface.LogLevel.Error then
-		return coroutine.close(coroutine.running())
+	if self.level > Logger.Interface.LogLevel.Error or Logger.LogLevel > Logger.Interface.LogLevel.Error then
+		return
 	end
 
 	Logger.Interface.onMessageOut:Fire(self.id or "<unknown>", outputMessage)
@@ -134,14 +137,14 @@ function Logger.Class:error(...)
 end
 
 function Logger.Class:warn(...)
-	local outputMessage = Logger.Functions:formatMessageSchema(self.schema, self.id, "warn", Logger.Functions:formatVaradicArguments(...))
+	local outputMessage = Logger.Functions:formatMessageSchema(self.schema or Logger.Schema, self.id, "warn", Logger.Functions:formatVaradicArguments(...))
 
 	table.insert(self.logs, 1, { "warn", outputMessage, self.id })
 	if #self.logs > MAXIMUM_CACHED_LOGS then
 		table.remove(self.logs, MAXIMUM_CACHED_LOGS)
 	end
 
-	if self.level > Logger.Interface.LogLevel.Warn then
+	if self.level > Logger.Interface.LogLevel.Warn or Logger.LogLevel > Logger.Interface.LogLevel.Warn then
 		return
 	end
 
@@ -151,14 +154,14 @@ function Logger.Class:warn(...)
 end
 
 function Logger.Class:log(...)
-	local outputMessage = Logger.Functions:formatMessageSchema(self.schema, self.id, "log", Logger.Functions:formatVaradicArguments(...))
+	local outputMessage = Logger.Functions:formatMessageSchema(self.schema or Logger.Schema, self.id, "log", Logger.Functions:formatVaradicArguments(...))
 
 	table.insert(self.logs, 1, { "log", outputMessage, self.id })
 	if #self.logs > MAXIMUM_CACHED_LOGS then
 		table.remove(self.logs, MAXIMUM_CACHED_LOGS)
 	end
 
-	if self.level > Logger.Interface.LogLevel.Log then
+	if self.level > Logger.Interface.LogLevel.Log or Logger.LogLevel > Logger.Interface.LogLevel.Log then
 		return
 	end
 
@@ -168,14 +171,14 @@ function Logger.Class:log(...)
 end
 
 function Logger.Class:debug(...)
-	local outputMessage = Logger.Functions:formatMessageSchema(self.schema, self.id, "debug", Logger.Functions:formatVaradicArguments(...))
+	local outputMessage = Logger.Functions:formatMessageSchema(self.schema or Logger.Schema, self.id, "debug", Logger.Functions:formatVaradicArguments(...))
 
 	table.insert(self.logs, 1, { "debug", outputMessage, self.id })
 	if #self.logs > MAXIMUM_CACHED_LOGS then
 		table.remove(self.logs, MAXIMUM_CACHED_LOGS)
 	end
 
-	if self.level > Logger.Interface.LogLevel.Debug then
+	if self.level > Logger.Interface.LogLevel.Debug or Logger.LogLevel > Logger.Interface.LogLevel.Debug then
 		return
 	end
 
@@ -195,6 +198,10 @@ end
 function Logger.Class:fetchLogs(count: number)
 	local fetchedLogs = {}
 
+	if not count then
+		return self.logs
+	end
+
 	for index = 1, count do
 		if not self.logs[index] then
 			return fetchedLogs
@@ -206,17 +213,29 @@ function Logger.Class:fetchLogs(count: number)
 	return fetchedLogs
 end
 
+function Logger.Interface.setGlobalLogLevel(logLevel: number)
+	Logger.LogLevel = logLevel
+end
+
+function Logger.Interface.setGlobalSchema(schema: string)
+	Logger.Schema = schema
+end
+
+function Logger.Interface.get(logId: string)
+	return Logger.Reporters[logId]
+end
+
 function Logger.Interface.new(logId: string?, schema: string?)
 	local self = setmetatable({
 		id = logId,
 		level = Logger.Interface.LogLevel.Debug,
-		schema = schema or DEFAULT_LOGGING_SCHEMA,
+		schema = schema,
 		enabled = true,
 		logs = { },
 	}, { __index = Logger.Class })
 
 	if logId then
-		Logger.Instances[self.id] = self
+		Logger.Reporters[self.id] = self
 	end
 
 	return self
