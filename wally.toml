@@ -1,6 +1,6 @@
 [package]
 name = "4x8matrix/console"
-version = "1.1.0"
+version = "1.1.2"
 realm = "shared"
 registry = "https://github.com/upliftgames/wally-index"
 licence = "Unlicense"
