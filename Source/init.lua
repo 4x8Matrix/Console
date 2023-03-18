@@ -76,7 +76,12 @@ end
 
 function Logger.Functions:formatVaradicArguments(...)
 	local args = { ... }
-	local message = table.remove(args, 1)
+	local message = ""
+	local messageType = typeof(args[1])
+
+	if messageType == "string" then
+		message = table.remove(args, 1)
+	end
 
 	for index, value in args do
 		args[index] = self:toPrettyString(value)
