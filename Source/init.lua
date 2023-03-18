@@ -76,7 +76,8 @@ end
 
 function Logger.Functions:formatVaradicArguments(...)
 	local args = { ... }
-	local message = ""
+
+	local message = string.rep("%s ", #args)
 	local messageType = typeof(args[1])
 
 	if messageType == "string" then
