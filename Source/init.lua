@@ -247,4 +247,4 @@ function Logger.Interface.new(logId: string?, schema: string?)
 	return self
 end
 
-return Logger.Interface :: typeof(Logger.Interface)
+return Logger.Interface
