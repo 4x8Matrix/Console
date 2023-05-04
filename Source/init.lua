@@ -515,4 +515,4 @@ function Logger.Interface.new(logId: string?, schema: string?): Reporter
 	return self
 end
 
-return Logger :: Logger
+return Logger.Interface :: Logger
