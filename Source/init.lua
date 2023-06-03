@@ -62,6 +62,8 @@ function Logger.Functions:ToPrettyString(...)
 				table.insert(stringifiedObjects, `RecursiveTable<{tostring(object)}>`)
 
 				continue
+			else
+				Logger.Cache[object] = true
 			end
 
 			local tableSchema = "{\n"
@@ -105,6 +107,8 @@ function Logger.Functions:FormatVaradicArguments(...)
 	for index, value in args do
 		args[index] = self:ToPrettyString(value)
 	end
+
+	table.clear(Logger.Cache)
 
 	return string.format(
 		message,
