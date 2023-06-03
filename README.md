@@ -19,8 +19,8 @@ Console.setGlobalSchema("[%s][%s] -> %s")
 local Reporter = Console.new("Reporter Name")
 
 -- Warning/Printing messages to the output.
-Reporter:log("Hello, World!")
-Reporter:warn("Hello, World!")
+Reporter:Log("Hello, World!")
+Reporter:Warn("Hello, World!")
 ```
 
 Brief overview on how this integrates well with Knit:
@@ -37,7 +37,7 @@ local Controller = Knit.CreateController({
 })
 
 function Controller:KnitInit()
-	self.reporter:log("Hello, from " .. script.Name)
+	self.reporter:Log("Hello, from " .. script.Name)
 end
 
 return Controller
