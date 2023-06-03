@@ -1,8 +1,11 @@
 -- // Services
 local RunService = game:GetService("RunService")
 
--- // Dependencies
+-- // External Imports
 local Signal = require(script.Parent.Signal)
+
+-- // Internal Imports
+local Types = require(script.Types)
 
 -- // Constants
 local DEFAULT_LOGGING_SCHEMA = "[%s][%s] :: %s"
@@ -12,12 +15,16 @@ local PRETTY_TABLE_TAB = string.rep("\t", (RunService:IsStudio() and 1) or 5)
 -- // Module
 local Logger = { }
 
+Logger.Type = "Logger"
+
 Logger.LogLevel = 1
 Logger.Schema = DEFAULT_LOGGING_SCHEMA
 
+Logger.Cache = setmetatable({}, { __mode = "kv" })
+
 Logger.Functions = { }
 Logger.Interface = { }
-Logger.Reporters = { }
+Logger.Instances = { }
 Logger.Prototype = { }
 
 Logger.Interface.onMessageOut = Signal.new()
@@ -29,42 +36,8 @@ Logger.Interface.LogLevel = {
 	["Critical"] = 5,
 }
 
--- // Module Types
-export type Reporter = {
-	fetchLogs: (Reporter, count: number) -> { [number]: { logType: string, message: string, logId: string } },
-
-	setState: (Reporter, state: boolean) -> (),
-	setLogLevel: (Reporter, logLevel: number) -> (),
-
-	debug: (Reporter, ...any) -> (),
-	log: (Reporter, ...any) -> (),
-	warn: (Reporter, ...any) -> (),
-	error: (Reporter, ...any) -> (),
-	critical: (Reporter, ...any) -> (),
-
-	assert: (Reporter, condition: boolean, ...any) -> ()
-}
-
-export type Logger = {
-	new: (logId: string?, schema: string?) -> Reporter,
-	get: (logId: string) -> Reporter | nil,
-
-	setGlobalSchema: (schema: string) -> (),
-	setGlobalLogLevel: (logLevel: number) -> (),
-
-	onMessageOut: RBXScriptSignal,
-
-	LogLevel: {
-		Debug: number,
-		Log: number,
-		Warn: number,
-		Error: number,
-		Critical: number
-	}
-}
-
 -- // QoL functions
-function Logger.Functions:addScopeToString(string)
+function Logger.Functions:AddScopeToString(string)
 	local stringSplit = string.split(string, "\n")
 
 	for index, value in stringSplit do
@@ -78,25 +51,31 @@ function Logger.Functions:addScopeToString(string)
 	return table.concat(stringSplit, "\n")
 end
 
-function Logger.Functions:toPrettyString(...)
+function Logger.Functions:ToPrettyString(...)
 	local stringifiedObjects = { }
 
 	for _, object in { ... } do
 		local objectType = typeof(object)
 
 		if objectType == "table" then
+			if Logger.Cache[object] then
+				table.insert(stringifiedObjects, `RecursiveTable<{tostring(object)}>`)
+
+				continue
+			end
+
 			local tableSchema = "{\n"
 			local tableEntries = 0
 
 			for key, value in object do
 				tableEntries += 1
 
-				key = self:toPrettyString(key)
+				key = self:ToPrettyString(key)
 
 				if typeof(value) == "table" then
-					value = self:addScopeToString(self:toPrettyString(value))
+					value = self:AddScopeToString(self:ToPrettyString(value))
 				else
-					value = self:toPrettyString(value)
+					value = self:ToPrettyString(value)
 				end
 
 				tableSchema ..= string.format("%s[%s] = %s,\n", PRETTY_TABLE_TAB, key, value)
@@ -113,7 +92,7 @@ function Logger.Functions:toPrettyString(...)
 	return table.concat(stringifiedObjects, " ")
 end
 
-function Logger.Functions:formatVaradicArguments(...)
+function Logger.Functions:FormatVaradicArguments(...)
 	local args = { ... }
 
 	local message = string.rep("%s ", #args)
@@ -124,7 +103,7 @@ function Logger.Functions:formatVaradicArguments(...)
 	end
 
 	for index, value in args do
-		args[index] = self:toPrettyString(value)
+		args[index] = self:ToPrettyString(value)
 	end
 
 	return string.format(
@@ -133,7 +112,7 @@ function Logger.Functions:formatVaradicArguments(...)
 	)
 end
 
-function Logger.Functions:formatMessageSchema(schema: string, source: string, ...)
+function Logger.Functions:FormatMessageSchema(schema: string, source: string, ...)
 	source = source or debug.info(2, "s")
 
 	return string.format(
@@ -143,7 +122,7 @@ end
 
 -- // Prototype functions
 --[[
-	Assertions, however written through our reporter, if the condition isn't met, the reporter will call :error on itself with the given message.
+	Assertions, however written through our logger, if the condition isn't met, the logger will call :error on itself with the given message.
 
 	### Parameters
 	- **condition**: *the condition we are going to validate*
@@ -153,15 +132,15 @@ end
 	Example:
 
 	```lua
-		local Reporter = Logger.new("Reporter")
+		local Logger = Logger.new("Logger")
 
-		Reporter:assert(1 == 1, "Hello, World!") -- > will output: nothing
-		Reporter:assert(1 == 2, "Hello, World!") -- > will output: [Reporter][error]: "Hello, World!" <stack attached>
+		Logger:Assert(1 == 1, "Hello, World!") -- > will output: nothing
+		Logger:Assert(1 == 2, "Hello, World!") -- > will output: [Logger][error]: "Hello, World!" <stack attached>
 	```
 ]]
-function Logger.Prototype:assert(condition, ...): ()
+function Logger.Prototype:Assert(condition, ...): ()
 	if not condition then
-		self:error(...)
+		self:Error(...)
 	end
 end
 
@@ -175,13 +154,13 @@ end
 	Example:
 
 	```lua
-		local Reporter = Logger.new("Reporter")
+		local Logger = Logger.new("Logger")
 
-		Reporter:critical("Hello, World!") -- > will output: [Reporter][critical]: "Hello, World!" <stack attached>
+		Logger:Critical("Hello, World!") -- > will output: [Logger][critical]: "Hello, World!" <stack attached>
 	```
 ]]
-function Logger.Prototype:critical(...): ()
-	local outputMessage = Logger.Functions:formatMessageSchema(self.schema or Logger.Schema, self.id, "critical", Logger.Functions:formatVaradicArguments(...))
+function Logger.Prototype:Critical(...): ()
+	local outputMessage = Logger.Functions:FormatMessageSchema(self.schema or Logger.Schema, self.id, "critical", Logger.Functions:FormatVaradicArguments(...))
 
 	table.insert(self.logs, 1, { "critical", outputMessage, self.id })
 	if #self.logs > MAXIMUM_CACHED_LOGS then
@@ -209,13 +188,13 @@ end
 	Example:
 
 	```lua
-		local Reporter = Logger.new("Reporter")
+		local Logger = Logger.new("Logger")
 
-		Reporter:error("Hello, World!") -- > will output: [Reporter][error]: "Hello, World!" <stack attached>
+		Logger:Error("Hello, World!") -- > will output: [Logger][error]: "Hello, World!" <stack attached>
 	```
 ]]
-function Logger.Prototype:error(...): ()
-	local outputMessage = Logger.Functions:formatMessageSchema(self.schema or Logger.Schema, self.id, "error", Logger.Functions:formatVaradicArguments(...))
+function Logger.Prototype:Error(...): ()
+	local outputMessage = Logger.Functions:FormatMessageSchema(self.schema or Logger.Schema, self.id, "error", Logger.Functions:FormatVaradicArguments(...))
 
 	table.insert(self.logs, 1, { "error", outputMessage, self.id })
 	if #self.logs > MAXIMUM_CACHED_LOGS then
@@ -243,13 +222,13 @@ end
 	Example:
 
 	```lua
-		local Reporter = Logger.new("Reporter")
+		local Logger = Logger.new("Logger")
 
-		Reporter:warn("Hello, World!") -- > will output: [Reporter][warn]: "Hello, World!"
+		Logger:Warn("Hello, World!") -- > will output: [Logger][warn]: "Hello, World!"
 	```
 ]]
-function Logger.Prototype:warn(...): ()
-	local outputMessage = Logger.Functions:formatMessageSchema(self.schema or Logger.Schema, self.id, "warn", Logger.Functions:formatVaradicArguments(...))
+function Logger.Prototype:Warn(...): ()
+	local outputMessage = Logger.Functions:FormatMessageSchema(self.schema or Logger.Schema, self.id, "warn", Logger.Functions:FormatVaradicArguments(...))
 
 	table.insert(self.logs, 1, { "warn", outputMessage, self.id })
 	if #self.logs > MAXIMUM_CACHED_LOGS then
@@ -275,13 +254,13 @@ end
 	Example:
 
 	```lua
-		local Reporter = Logger.new("Reporter")
+		local Logger = Logger.new("Logger")
 
-		Reporter:log("Hello, World!") -- > will output: [Reporter][log]: "Hello, World!"
+		Logger:Log("Hello, World!") -- > will output: [Logger][log]: "Hello, World!"
 	```
 ]]
-function Logger.Prototype:log(...): ()
-	local outputMessage = Logger.Functions:formatMessageSchema(self.schema or Logger.Schema, self.id, "log", Logger.Functions:formatVaradicArguments(...))
+function Logger.Prototype:Log(...): ()
+	local outputMessage = Logger.Functions:FormatMessageSchema(self.schema or Logger.Schema, self.id, "log", Logger.Functions:FormatVaradicArguments(...))
 
 	table.insert(self.logs, 1, { "log", outputMessage, self.id })
 	if #self.logs > MAXIMUM_CACHED_LOGS then
@@ -307,13 +286,13 @@ end
 	Example:
 
 	```lua
-		local Reporter = Logger.new("Reporter")
+		local Logger = Logger.new("Logger")
 
-		Reporter:debug("Hello, World!") -- > will output: [Reporter][debug]: "Hello, World!"
+		Logger:Debug("Hello, World!") -- > will output: [Logger][debug]: "Hello, World!"
 	```
 ]]
-function Logger.Prototype:debug(...): ()
-	local outputMessage = Logger.Functions:formatMessageSchema(self.schema or Logger.Schema, self.id, "debug", Logger.Functions:formatVaradicArguments(...))
+function Logger.Prototype:Debug(...): ()
+	local outputMessage = Logger.Functions:FormatMessageSchema(self.schema or Logger.Schema, self.id, "debug", Logger.Functions:FormatVaradicArguments(...))
 
 	table.insert(self.logs, 1, { "debug", outputMessage, self.id })
 	if #self.logs > MAXIMUM_CACHED_LOGS then
@@ -330,77 +309,83 @@ function Logger.Prototype:debug(...): ()
 end
 
 --[[
-	Set an log level for this reporter, log levels assigned per reporter override the global log level.
+	Set an log level for this logger, log levels assigned per logger override the global log level.
 
 	### Parameters
 	- **logLevel**: *The logLevel priority you only want to show in output*
 		* *Log Levels are exposed through `Logger.LogLevel`*
 
 	### Returns
-	- **Array**: *The array of logs created from this reporter*
+	- **Array**: *The array of logs created from this logger*
 
 	---
 	Example:
 
 	```lua
-		local Reporter = Logger.new("Reporter")
-		
-		Logger.setGlobalLogLevel(Logger.LogLevel.Warn)
+		local Logger = LoggerModule.new("Logger")
 
-		Reporter:log("Hello, World!") -- this will NOT output anything
-		Reporter:warn("Hello, World!") -- this will output something
+		LoggerModule.setGlobalLogLevel(Logger.LogLevel.Warn)
 
-		Reporter:setLogLevel(Logger.LogLevel.Log)
+		Logger:Log("Hello, World!") -- this will NOT output anything
+		Logger:Warn("Hello, World!") -- this will output something
 
-		Reporter:log("Hello, World!") -- this will output something
-		Reporter:warn("Hello, World!") -- this will output something
+		Logger:SetLogLevel(Logger.LogLevel.Log)
+
+		Logger:Log("Hello, World!") -- this will output something
+		Logger:Warn("Hello, World!") -- this will output something
 	```
 ]]
-function Logger.Prototype:setLogLevel(logLevel: number): ()
+function Logger.Prototype:SetLogLevel(logLevel: number): ()
 	self.level = logLevel
 end
 
 --[[
-	Sets the state of the reporter, state depicts if the reporter can log messages into the output.
+	Sets the state of the logger, state depicts if the logger can log messages into the output.
 
 	### Parameters
-	- **state**: *A bool to indicate weather this reporter is enabled or not.*
+	- **state**: *A bool to indicate weather this logger is enabled or not.*
 
 	---
 	Example:
 
 	```lua
-		local Reporter = Logger.new("Reporter")
+		local Logger = Logger.new("Logger")
 
-		Reporter:log("Hello, World!") -- > will output: [Reporter][log]: "Hello, World!"
-		Reporter:setState(false)
-		Reporter:log("Hello, World!") -- > will output: nothing
+		Logger:Log("Hello, World!") -- > will output: [Logger][log]: "Hello, World!"
+		Logger:SetState(false)
+		Logger:Log("Hello, World!") -- > will output: nothing
 	```
 ]]
-function Logger.Prototype:setState(state: boolean): ()
+function Logger.Prototype:SetState(state: boolean): ()
 	self.enabled = state
 end
 
 --[[
-	Fetch an array of logs generated through this reporter
+	Fetch an array of logs generated through this logger
 
 	### Parameters
 	- **count**: *The amount of logs you're trying to retrieve*
 
 	### Returns
-	- **Array**: *The array of logs created from this reporter*
+	- **Array**: *The array of logs created from this logger*
 
 	---
 	Example:
 
 	```lua
-		local Reporter = Logger.new("Reporter")
+		local Logger = Logger.new("Logger")
 
-		Reporter:log("Hello, World!") -- > [Reporter][log]: "Hello, World!"
-		Reporter:fetchLogs() -- > table
+		Logger:Log("Hello, World!") -- > [Logger][log]: "Hello, World!"
+		Logger:FetchLogs() -- > [=[
+			{
+				"log",
+				"[Logger][log]: \"Hello, World!\"",
+				"Logger"
+			}
+		]=]--
 	```
 ]]
-function Logger.Prototype:fetchLogs(count: number): { [number]: { logType: string, message: string, logId: string } }
+function Logger.Prototype:FetchLogs(count: number): { [number]: { logType: string, message: string, logId: string } }
 	local fetchedLogs = {}
 
 	if not count then
@@ -418,6 +403,22 @@ function Logger.Prototype:fetchLogs(count: number): { [number]: { logType: strin
 	return fetchedLogs
 end
 
+--[[
+	Returns a prettified string version of the logger table.
+
+	---
+	Example:
+
+	```lua
+		local Value = State.new(0)
+
+		print(tostring(Value)) -- Value<0>
+	```
+]]
+function Logger.Prototype:ToString(): string
+	return `{Logger.Type}<"{tostring(self.id)}">`
+end
+
 -- // Module functions
 --[[
 	Set the global log level for all loggers, a log level is the priority of a log, priorities are represented by a number.
@@ -432,8 +433,8 @@ end
 	```lua
 		Logger.setGlobalLogLevel(Logger.LogLevel.Warn)
 
-		Reporter:log("Hello, World!") -- this will NOT output anything
-		Reporter:warn("Hello, World!") -- this will output something
+		Logger:log("Hello, World!") -- this will NOT output anything
+		Logger:warn("Hello, World!") -- this will output something
 	```
 ]]
 function Logger.Interface.setGlobalLogLevel(logLevel: number): ()
@@ -454,7 +455,7 @@ end
 	```lua
 		Logger.setGlobalSchema("[%s][%s]: %s")
 
-		Reporter:log("Hello, World!") -- > [<ReporterName>][log]: Hello, World!
+		Logger:log("Hello, World!") -- > [<ReporterName>][log]: Hello, World!
 	```
 ]]
 function Logger.Interface.setGlobalSchema(schema: string): ()
@@ -462,35 +463,35 @@ function Logger.Interface.setGlobalSchema(schema: string): ()
 end
 
 --[[
-	Fetch a `Reporter` object through it's given `logId`
+	Fetch a `Logger` object through it's given `logId`
 
 	### Parameters
-	- **logId?**: *The name of the `Reporter` object you want to fetch*
+	- **logId?**: *The name of the `Logger` object you want to fetch*
 
 	### Returns
-	- **Reporter**: *The constructed `Reporter` prototype*
-	- **nil**: *Unable to find the `Reporter`*
+	- **Logger**: *The constructed `Logger` prototype*
+	- **nil**: *Unable to find the `Logger`*
 
 	---
 	Example:
 
 	```lua
-		Logger.get("Reporter"):log("Hello, World!") -- > [Reporter][log]: "Hello, World!"
+		Logger.get("Logger"):log("Hello, World!") -- > [Logger][log]: "Hello, World!"
 	```
 ]]
-function Logger.Interface.get(logId: string): Reporter | nil
-	return Logger.Reporters[logId]
+function Logger.Interface.get(logId: string): Types.Logger | nil
+	return Logger.Instances[logId]
 end
 
 --[[
-	Constructor to generate a `Reporter` prototype
+	Constructor to generate a `Logger` prototype
 
 	### Parameters
-	- **logId?**: *The name of the `Reporter`, this will default to the calling script name.*
-	- **schema?**: *The schema this paticular `Reporter` will follow*
+	- **logId?**: *The name of the `Logger`, this will default to the calling script name.*
+	- **schema?**: *The schema this paticular `Logger` will follow*
 
 	### Returns
-	- **Reporter**: The constructed `Reporter` prototype
+	- **Logger**: The constructed `Logger` prototype
 
 	---
 	Example:
@@ -499,20 +500,53 @@ end
 		Logger.new("Example"):log("Hello, World!") -- > [Example][log]: "Hello, World!"
 	```
 ]]
-function Logger.Interface.new(logId: string?, schema: string?): Reporter
+function Logger.Interface.new(logId: string?, schema: string?): Types.Logger
 	local self = setmetatable({
 		id = logId,
 		level = Logger.Interface.LogLevel.Debug,
 		schema = schema,
 		enabled = true,
 		logs = { },
-	}, { __index = Logger.Prototype })
+	}, {
+		__index = Logger.Prototype,
+		__type = Logger.Type,
+		__tostring = function(obj)
+			return obj:ToString()
+		end
+	})
 
 	if logId then
-		Logger.Reporters[self.id] = self
+		Logger.Instances[self.id] = self
 	end
 
 	return self
 end
 
-return Logger.Interface :: Logger
+--[[
+	Validate if an object is a 'Logger' object
+
+	### Parameters
+	- **object**: *potentially an 'Logger' object*
+
+	---
+	Example:
+
+	```lua
+		local object = Logger.new("Test")
+
+		if Logger.is(object) then
+			...
+		end
+	```
+]]
+function Logger.Interface.is(object: Types.Logger?): boolean
+	if not object or type(object) ~= "table" then
+		return false
+	end
+
+	local metatable = getmetatable(object)
+
+	return metatable and metatable.__type == Logger.Type
+end
+
+return Logger.Interface :: Types.LoggerModule
