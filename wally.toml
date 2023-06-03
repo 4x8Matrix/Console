@@ -1,10 +1,10 @@
 [package]
 name = "4x8matrix/console"
-version = "1.2.1"
+version = "2.0.0"
 realm = "shared"
 registry = "https://github.com/upliftgames/wally-index"
 licence = "Unlicense"
-authors = ["AsynchronousMatrix <Catbob614@gmail.com>"]
+authors = ["AsynchronousMatrix"]
 
 description = "A Roblox resource to simplify & enhance the Roblox Console/Output"
 
