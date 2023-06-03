@@ -1,0 +1,50 @@
+{
+	"name": "State",
+	"tree": {
+		"$className": "DataModel",
+
+		"Players": {
+			"$className": "Players",
+			"$properties": {
+				"CharacterAutoLoads": false
+			}
+		},
+
+		"ReplicatedStorage": {
+			"$ignoreUnknownInstances": true,
+			"$className": "ReplicatedStorage",
+			
+			"Packages": {
+				"$path": "Packages",
+				
+				"Console": {
+					"$path": "Source"
+				}
+			},
+
+			"UnitTests": {
+				"$path": "Build/Tests"
+			},
+
+			"DevPackages": {
+				"$className": "Folder",
+				"$path": "DevPackages"
+			}
+		},
+
+		"StarterGui": {
+			"$className": "StarterGui",
+			"$ignoreUnknownInstances": true,
+			"$path": "Build/Assets/StarterGui"
+		},
+
+		"ServerScriptService": {
+			"$className": "ServerScriptService",
+			"$ignoreUnknownInstances": true,
+			
+			"Source": {
+				"$path": "Build/Source"
+			}
+		}
+	}
+}
