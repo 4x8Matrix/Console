@@ -16,4 +16,4 @@ include = ["Source", "Source/*", "default.project.json", "wally.lock", "wally.to
 # EmoticonReporter = "4x8matrix/emoticon-reporter@1.0.0"
 
 [dependencies]
-Signal = "sleitnick/signal@1.2.1"
+Signal = "sleitnick/signal@1.5.0"
